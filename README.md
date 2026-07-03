@@ -131,24 +131,3 @@ ___
 <small>Lugo, Galicia</small>
 
 </div>
-
-<!--
-PORTFOLIO:METADATA — DO NOT EDIT MANUALLY
-====================================================================
-title: Omarchy Walls
-tagline_en: wallpaper browser
-tagline_es: buscador de fondos
-description_en: Terminal wallpaper browser for Omarchy: streams a 3.7 GB curated collection without cloning it — indexed via GitHub API, previewed live with kitty graphics, installed into theme rotations.
-description_es: Buscador de fondos en terminal para Omarchy: explora una colección de 3,7 GB sin clonarla — índice vía API de GitHub, preview en vivo con kitty graphics e instalación en tus temas.
-tech_stack: Bash, fzf, gum, kitty, jq, ImageMagick, Hyprland, GitHub API
-primary_tech: Bash
-main_img_url: https://raw.githubusercontent.com/samuhlo/omarchy-walls/main/assets/preview-categories.png
-images_url: https://raw.githubusercontent.com/samuhlo/omarchy-walls/main/assets/preview-list.png
-https://raw.githubusercontent.com/samuhlo/omarchy-walls/main/assets/preview-actions.png
-repo_url: https://github.com/samuhlo/omarchy-walls
-live_url:
-year: 2026
-post_url:
-blog_url:
-====================================================================
--->
