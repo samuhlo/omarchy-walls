@@ -89,6 +89,11 @@ Las descargas desde `raw.githubusercontent.com` no consumen cuota de API.
   imagen seleccionada renderizada en grande encima (gum): Set now / Add to
   current theme / Add to another theme / Fullscreen preview / Back / Quit.
 - Esc navega hacia atrás nivel a nivel (acciones → lista → categorías → salir).
+- Rediseño 2ª iteración (2026-07-03, feedback: espacio muerto junto al preview):
+  preview arriba a ancho completo (formato banner, casa con wallpapers 16:9),
+  mosaico 2×2 de thumbs aleatorios como preview de categoría, e imágenes
+  centradas midiendo la geometría real de celda del terminal (icat ignora
+  --align cuando se combina --place con unicode placeholders).
 - `omarchy-walls menu` : lanza el browser en kitty flotante centrada (75%),
   pensado para el keybinding de Hyprland.
 

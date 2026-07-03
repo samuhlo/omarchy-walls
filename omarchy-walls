@@ -308,6 +308,46 @@ if [[ -f $COLORS_TOML ]]; then
   )
 fi
 
+# Cell height/width ratio x100, measured from the real window geometry.
+cell_ratio_x100() {
+  local px rc
+  px=$(kitten icat --print-window-size 2>/dev/null </dev/tty) || return 1
+  rc=$(stty size </dev/tty 2>/dev/null) || return 1
+  local pw=${px%x*} ph=${px#*x} rows=${rc%% *} cols=${rc##* }
+  [[ $pw =~ ^[0-9]+$ && $ph =~ ^[0-9]+$ ]] || return 1
+  ((pw > 0 && ph > 0 && rows > 0 && cols > 0)) || return 1
+  echo $(((ph * cols * 100) / (rows * pw)))
+}
+
+# Draws an image horizontally centered in a cols x rows cell rectangle.
+# icat's --align is ignored with --place + unicode placeholders, so the
+# offset is computed here from the image and cell dimensions.
+icat_centered() {
+  local img="$1" cols="$2" rows="$3"
+  local place="${cols}x${rows}@0x0"
+  if command -v magick >/dev/null; then
+    local dims iw ih ratio
+    dims=$(magick identify -format "%w %h" "$img[0]" 2>/dev/null)
+    iw=${dims%% *} ih=${dims##* }
+    ratio=$(cell_ratio_x100) || ratio=200
+    if [[ $iw =~ ^[0-9]+$ && $ih =~ ^[0-9]+$ ]] && ((ih > 0)); then
+      local w_cells=$((iw * rows * ratio / (ih * 100)))
+      ((w_cells > 0 && w_cells < cols)) &&
+        place="${w_cells}x${rows}@$(((cols - w_cells) / 2))x0"
+    fi
+  fi
+  kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no \
+    --place "$place" "$img" 2>/dev/null
+}
+
+render_in_pane() {
+  if is_kitty_graphics; then
+    icat_centered "$1" "${FZF_PREVIEW_COLUMNS:-80}" "${FZF_PREVIEW_LINES:-24}"
+  else
+    echo "(image preview needs a kitty-graphics terminal — use 'omarchy-walls menu')"
+  fi
+}
+
 # Internal: renders the image preview inside fzf's preview pane.
 cmd_fzf_preview() {
   local path="${1:-}"
@@ -317,27 +357,41 @@ cmd_fzf_preview() {
     echo "$path"
     return 0
   }
-
-  if is_kitty_graphics; then
-    kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no \
-      --place "${FZF_PREVIEW_COLUMNS:-80}x${FZF_PREVIEW_LINES:-24}@0x0" "$thumb" 2>/dev/null
-  else
-    echo "$path"
-    echo "(image preview needs a kitty-graphics terminal — use 'omarchy-walls menu')"
-  fi
+  render_in_pane "$thumb"
 }
 
-# Internal: previews a random wallpaper from a category (or "all").
+# Internal: previews a category (or "all") as a 2x2 mosaic of random
+# wallpapers; falls back to a single image when magick or entries are short.
 cmd_fzf_preview_category() {
   local category="${1:-}"
-  local pick
+  local picks
   if [[ $category == all ]]; then
-    pick=$(jq -r '.[]' "$INDEX_FILE" | shuf -n1)
+    picks=$(jq -r '.[]' "$INDEX_FILE" | shuf -n4)
   else
-    pick=$(jq -r --arg c "$category" '.[] | select(startswith($c + "/"))' "$INDEX_FILE" | shuf -n1)
+    picks=$(jq -r --arg c "$category" '.[] | select(startswith($c + "/"))' "$INDEX_FILE" | shuf -n4)
   fi
-  [[ -n $pick ]] || return 0
-  cmd_fzf_preview "$pick"
+  [[ -n $picks ]] || return 0
+
+  if (($(wc -l <<<"$picks") < 4)) || ! command -v magick >/dev/null; then
+    cmd_fzf_preview "$(head -1 <<<"$picks")"
+    return 0
+  fi
+
+  local thumbs
+  mapfile -t thumbs < <(xargs -d '\n' -P4 -I{} "$SCRIPT_PATH" thumb {} <<<"$picks" 2>/dev/null)
+  if ((${#thumbs[@]} < 4)); then
+    cmd_fzf_preview "$(head -1 <<<"$picks")"
+    return 0
+  fi
+
+  # $$ -> fzf spawns overlapping previews while scrolling; keep them apart
+  local mosaic="$CACHE_DIR/mosaic-$$.png"
+  if magick montage "${thumbs[@]}" -tile 2x2 -geometry 400x225+1+1 -background none "$mosaic" 2>/dev/null; then
+    render_in_pane "$mosaic"
+    rm -f "$mosaic"
+  else
+    cmd_fzf_preview "$(head -1 <<<"$picks")"
+  fi
 }
 
 # Draws the selected wallpaper large at the top of the screen, leaving the
@@ -353,8 +407,7 @@ render_selected_image() {
   lines=$(tput lines) cols=$(tput cols)
   img_lines=$((lines - 11))
   ((img_lines < 5)) && return 0
-  kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no \
-    --place "${cols}x${img_lines}@0x0" "$thumb" 2>/dev/null
+  icat_centered "$thumb" "$cols" "$img_lines"
   tput cup $((img_lines + 1)) 0
 }
 
@@ -418,7 +471,7 @@ pick_category() {
     --prompt 'category ❯ ' \
     --header 'enter: open · esc: quit' \
     --preview "'$SCRIPT_PATH' __fzf-preview-category {1}" \
-    --preview-window 'right,55%,border-left' |
+    --preview-window 'up,55%,border-bottom' |
     awk '{print $1}'
 }
 
@@ -433,7 +486,7 @@ browse_category() {
         --prompt 'all ❯ ' \
         --header 'enter: actions · esc: categories' \
         --preview "'$SCRIPT_PATH' __fzf-preview {}" \
-        --preview-window 'right,55%,border-left')
+        --preview-window 'up,55%,border-bottom')
     else
       selection=$(jq -r --arg c "$category" '.[] | select(startswith($c + "/"))' "$INDEX_FILE" |
         fzf "${FZF_STYLE[@]}" \
@@ -441,7 +494,7 @@ browse_category() {
           --prompt "$category ❯ " \
           --header 'enter: actions · esc: categories' \
           --preview "'$SCRIPT_PATH' __fzf-preview {}" \
-          --preview-window 'right,55%,border-left')
+          --preview-window 'up,55%,border-bottom')
     fi
     [[ -n $selection ]] || return 0
     wall_action_menu "$selection" || return 1
