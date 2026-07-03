@@ -324,8 +324,13 @@ pane_px() {
 # top-left inside --place (ignoring --align with unicode placeholders) and
 # never upscales, so the image is composited onto a transparent canvas of
 # the pane's exact pixel size — the padding is what centers it.
+# Mode: "placeholder" (default) survives fzf's text redraws; "direct" is a
+# pixel overlay for screens we fully control (text redraws can shift
+# placeholder rows and shred the image into stripes).
 icat_centered() {
-  local img="$1" cols="$2" rows="$3"
+  local img="$1" cols="$2" rows="$3" mode="${4:-placeholder}"
+  local icat_args=(--clear --transfer-mode=memory --stdin=no)
+  [[ $mode == placeholder ]] && icat_args+=(--unicode-placeholder)
 
   if command -v magick >/dev/null; then
     local size
@@ -333,16 +338,14 @@ icat_centered() {
     local canvas="$CACHE_DIR/pane-$$.png"
     if magick "$img[0]" -resize "$size" -background none -gravity center \
       -extent "$size" "$canvas" 2>/dev/null; then
-      kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no \
-        --scale-up --place "${cols}x${rows}@0x0" "$canvas" 2>/dev/null
+      kitten icat "${icat_args[@]}" --scale-up --place "${cols}x${rows}@0x0" "$canvas" 2>/dev/null
       rm -f "$canvas"
       return 0
     fi
     rm -f "$canvas"
   fi
 
-  kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no \
-    --place "${cols}x${rows}@0x0" "$img" 2>/dev/null
+  kitten icat "${icat_args[@]}" --place "${cols}x${rows}@0x0" "$img" 2>/dev/null
 }
 
 render_in_pane() {
@@ -412,7 +415,7 @@ render_selected_image() {
   lines=$(tput lines) cols=$(tput cols)
   img_lines=$((lines - 11))
   ((img_lines < 5)) && return 0
-  icat_centered "$thumb" "$cols" "$img_lines"
+  icat_centered "$thumb" "$cols" "$img_lines" direct
   tput cup $((img_lines + 1)) 0
 }
 
@@ -444,7 +447,9 @@ wall_action_menu() {
         ;;
       "Add to another theme...")
         local theme
-        theme=$(omarchy-theme-list 2>/dev/null | gum choose --header "Target theme") || continue
+        render_selected_image "$path"
+        # --height -> 23+ themes would scroll the screen and shear the image
+        theme=$(omarchy-theme-list 2>/dev/null | gum choose --height 8 --header "Target theme") || continue
         cmd_install "$path" --theme "$theme" && sleep 1
         return 0
         ;;
