@@ -102,6 +102,47 @@ Las descargas desde `raw.githubusercontent.com` no consumen cuota de API.
 - README (estilo propio) + capturas reales en `assets/`.
 - Publicado en https://github.com/samuhlo/omarchy-walls
 
+### Fase 5 — Integración en el menú de Omarchy (planificada 2026-07-03)
+
+**Hallazgos que la hacen viable:**
+- `Style > Background` (SUPER+ALT+SPACE) lanza `omarchy-launch-walker -m
+  menus:omarchyBackgroundSelector`: un menú **Lua de Elephant** definido en
+  `~/.config/elephant/menus/omarchy_background_selector.lua`, que es un
+  *symlink de usuario* al default de Omarchy → punto de inyección limpio.
+- Los temas modernos generan `~/.config/omarchy/current/theme/colors.toml`
+  (paleta canónica: accent/background/foreground/color0-15) y `gum.env.conf`,
+  cuyas variables GUM_* ya inyecta Hyprland en toda la sesión.
+- El kitty.conf de usuario ya incluye el tema actual → la ventana flotante
+  hereda colores sin hacer nada.
+
+**5a — Herencia de tema real:**
+- Eliminar la paleta Carbon Vandal hardcodeada del script.
+- fzf: parsear accent/background/foreground/color0/color8 de `colors.toml`
+  (fallback a genérico si el tema no lo trae).
+- gum: borrar los exports GUM_* propios — la sesión ya los tematiza; nuestros
+  exports actuales PISAN el tema del usuario.
+- Verificar cambiando entre 2-3 temas stock (capturas comparativas).
+
+**5b — Entrada en Style > Background:**
+- Sustituir el symlink por un wrapper Lua: `dofile()` del default de Omarchy
+  (hereda sus cambios futuros) + `GetEntries` envuelto que añade la entrada
+  "Browse walls collection…" → `activate = "omarchy-walls menu"`, con `pcall`
+  de blindaje (si el default cambia de forma, el menú original no se rompe).
+- Reinicio de elephant para recargar menús.
+- `install.sh`: aplicar la integración (backup del symlink) + comando
+  `omarchy-walls integrate|unintegrate` para aplicar/revertir a mano.
+
+**5c — Supervivencia a updates de Omarchy:**
+- Una migración de Omarchy puede recrear el symlink y quitar la entrada:
+  detectar en `omarchy-walls menu` si la integración se perdió y avisar
+  (re-ejecutar `install.sh` la restaura).
+
+**5d — PR al repo oficial (cuando 5a-5c estén pulidas):**
+- Upstream sería: entrada en su Lua por defecto + omarchy-walls como binario
+  opcional. Dependencias: todas stock en Omarchy. Requiere abrir discusión en
+  el repo (los mantenedores son estrictos con el alcance); llevar capturas,
+  demo y el argumento "cero peso: streaming sin clonar 3,7 GB".
+
 ## Riesgos / decisiones
 
 | Riesgo | Mitigación |
