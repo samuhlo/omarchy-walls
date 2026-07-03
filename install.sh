@@ -48,4 +48,6 @@ elif [[ -f $BINDINGS ]]; then
   echo ":: keybinding already present, skipping"
 fi
 
+"$BIN_DIR/omarchy-walls" integrate
+
 echo ":: done — press SUPER+ALT+W or run: omarchy-walls menu"

@@ -23,6 +23,11 @@ RESIZE_PROXY="https://images.weserv.nl/"
 BACKGROUNDS_ROOT="$HOME/.config/omarchy/backgrounds"
 THEME_NAME_FILE="$HOME/.config/omarchy/current/theme.name"
 
+ELEPHANT_MENU="$HOME/.config/elephant/menus/omarchy_background_selector.lua"
+OMARCHY_DEFAULT_MENU="$HOME/.local/share/omarchy/default/elephant/omarchy_background_selector.lua"
+INTEGRATION_MARKER="omarchy-walls integration"
+COVER_FILE="$CACHE_DIR/cover.png"
+
 IMAGE_EXT_REGEX='\.(png|jpe?g|webp)$'
 EXCLUDED_CATEGORIES='^(\.github|animated)$'
 
@@ -50,6 +55,8 @@ Commands:
   thumb <category>/<file>               Download a small thumbnail, print its path
   preview <category>/<file>             Show the wallpaper in a floating imv window
   install <category>/<file> [options]   Add a wallpaper to a theme's backgrounds
+  integrate                             Add a launcher entry to Omarchy's background menu
+  unintegrate                           Remove the launcher entry, restore the stock menu
   clean                                 Remove all cached data
   help                                  Show this help
 
@@ -271,11 +278,15 @@ is_kitty_graphics() {
   [[ -n ${KITTY_WINDOW_ID:-} || $TERM == *kitty* || $TERM == *ghostty* ]]
 }
 
-# Carbon Vandal palette: Industrial Yellow accents over Carbon base.
-ACCENT="#FFCA40"
-SURFACE="#1E1025"
-MUTED="#737373"
-FG="#FAF3F0"
+# Colors come from the active theme's canonical palette. gum needs no setup:
+# Hyprland already exports the theme's GUM_* vars session-wide.
+COLORS_TOML="$HOME/.config/omarchy/current/theme/colors.toml"
+
+theme_color() {
+  local val
+  val=$(grep -m1 -E "^$1 *= *\"" "$COLORS_TOML" 2>/dev/null | cut -d'"' -f2)
+  echo "${val:-$2}"
+}
 
 FZF_STYLE=(
   --layout=reverse
@@ -284,13 +295,18 @@ FZF_STYLE=(
   --pointer='▌'
   --highlight-line
   --no-multi
-  --color "border:$MUTED,prompt:$ACCENT,pointer:$ACCENT,header:$MUTED"
-  --color "hl:$ACCENT,hl+:$ACCENT,bg+:$SURFACE,fg+:$FG,info:$MUTED,spinner:$ACCENT"
 )
 
-# gum reads style from env -> one place for the whole action menu
-export GUM_CHOOSE_CURSOR_FOREGROUND="$ACCENT"
-export GUM_CHOOSE_HEADER_FOREGROUND="$MUTED"
+if [[ -f $COLORS_TOML ]]; then
+  ACCENT=$(theme_color accent "#FFCA40")
+  SURFACE=$(theme_color color0 "#1E1025")
+  MUTED=$(theme_color color8 "#737373")
+  FG=$(theme_color foreground "#FAF3F0")
+  FZF_STYLE+=(
+    --color "border:$MUTED,prompt:$ACCENT,pointer:$ACCENT,header:$MUTED"
+    --color "hl:$ACCENT,hl+:$ACCENT,bg+:$SURFACE,fg+:$FG,info:$MUTED,spinner:$ACCENT"
+  )
+fi
 
 # Internal: renders the image preview inside fzf's preview pane.
 cmd_fzf_preview() {
@@ -454,8 +470,105 @@ cmd_browse() {
   done
 }
 
+# Internal: regenerates the menu cover (magnifier in the theme's accent tone)
+# when the theme changed since the last run. Cheap no-op otherwise.
+cmd_ensure_cover() {
+  command -v magick >/dev/null || return 0
+  local theme accent bg meta meta_file="$CACHE_DIR/cover.meta"
+  theme=$(cat "$THEME_NAME_FILE" 2>/dev/null || echo default)
+  accent=$(theme_color accent "#FFCA40")
+  bg=$(theme_color background "#0C0011")
+  meta="$theme:$accent:$bg"
+  [[ -s $COVER_FILE && -f $meta_file && $(cat "$meta_file") == "$meta" ]] && return 0
+
+  mkdir -p "$CACHE_DIR"
+  magick -size 800x450 "xc:$bg" \
+    -stroke "$accent" -strokewidth 26 -fill none \
+    -draw "circle 355,185 355,290" \
+    -draw "line 430,260 555,385" \
+    "$COVER_FILE" 2>/dev/null && echo "$meta" >"$meta_file"
+}
+
+cmd_integrate() {
+  [[ -f $OMARCHY_DEFAULT_MENU ]] ||
+    die "stock background selector not found (unsupported Omarchy version)"
+
+  # BLINDAJE -> never clobber a menu the user customized themselves
+  if [[ -f $ELEPHANT_MENU && ! -L $ELEPHANT_MENU ]] &&
+    ! grep -q "$INTEGRATION_MARKER" "$ELEPHANT_MENU"; then
+    die "$ELEPHANT_MENU is a custom file — remove it first or integrate manually"
+  fi
+
+  # Writing through the symlink would hit Omarchy's read-only source
+  [[ -L $ELEPHANT_MENU ]] && rm "$ELEPHANT_MENU"
+  mkdir -p "$(dirname "$ELEPHANT_MENU")"
+
+  cat >"$ELEPHANT_MENU" <<LUA
+-- $INTEGRATION_MARKER — wraps Omarchy's stock background selector and appends
+-- a launcher entry. Managed by 'omarchy-walls integrate|unintegrate'.
+local home = os.getenv("HOME")
+local walls_bin = home .. "/.local/bin/omarchy-walls"
+local stock_ok = pcall(dofile, home .. "/.local/share/omarchy/default/elephant/omarchy_background_selector.lua")
+
+if not Name then
+  Name = "omarchyBackgroundSelector"
+  NamePretty = "Omarchy Background Selector"
+  Cache = false
+  HideFromProviderlist = true
+  SearchName = true
+end
+
+local stock_get_entries = stock_ok and GetEntries or nil
+
+function GetEntries()
+  local entries = {}
+  if stock_get_entries then
+    entries = stock_get_entries()
+  end
+
+  -- Sync so the cover tone always matches the active theme
+  local cover = io.popen(walls_bin .. " __ensure-cover 2>/dev/null")
+  if cover then
+    cover:read("*a")
+    cover:close()
+  end
+
+  table.insert(entries, {
+    Text = "󰍉  Browse walls collection",
+    Value = "omarchy-walls-browser",
+    Actions = { activate = walls_bin .. " menu" },
+    Preview = home .. "/.cache/omarchy-walls/cover.png",
+    PreviewType = "file",
+  })
+  return entries
+end
+LUA
+
+  cmd_ensure_cover
+  touch "$CACHE_DIR/.integrated"
+  command -v omarchy-restart-walker >/dev/null && omarchy-restart-walker
+  echo "Integrated: 'Browse walls collection' added to Style > Background"
+}
+
+cmd_unintegrate() {
+  if [[ -f $ELEPHANT_MENU && ! -L $ELEPHANT_MENU ]] &&
+    ! grep -q "$INTEGRATION_MARKER" "$ELEPHANT_MENU"; then
+    die "$ELEPHANT_MENU is not ours — leaving it untouched"
+  fi
+  rm -f "$ELEPHANT_MENU" "$CACHE_DIR/.integrated"
+  [[ -f $OMARCHY_DEFAULT_MENU ]] && ln -s "$OMARCHY_DEFAULT_MENU" "$ELEPHANT_MENU"
+  command -v omarchy-restart-walker >/dev/null && omarchy-restart-walker
+  echo "Stock background selector restored"
+}
+
 cmd_menu() {
   command -v kitty >/dev/null || die "kitty is required for the menu window"
+
+  # An Omarchy update can silently restore the stock menu symlink
+  if [[ -f $CACHE_DIR/.integrated ]] && ! grep -qs "$INTEGRATION_MARKER" "$ELEPHANT_MENU"; then
+    notify "omarchy-walls" "Menu integration was reverted (Omarchy update?) — run: omarchy-walls integrate"
+  fi
+
   if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && command -v hyprctl >/dev/null; then
     hyprctl dispatch exec \
       "[float; center; size 75% 75%] kitty --class=omarchy-walls --title=omarchy-walls '$SCRIPT_PATH' browse" >/dev/null
@@ -476,6 +589,9 @@ case "${1:-help}" in
   thumb) shift; cmd_thumb "$@" ;;
   preview) shift; cmd_preview "$@" ;;
   install) shift; cmd_install "$@" ;;
+  integrate) shift; cmd_integrate ;;
+  unintegrate) shift; cmd_unintegrate ;;
+  __ensure-cover) shift; cmd_ensure_cover ;;
   clean) shift; cmd_clean ;;
   help | --help | -h) usage ;;
   *)
