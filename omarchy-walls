@@ -308,36 +308,41 @@ if [[ -f $COLORS_TOML ]]; then
   )
 fi
 
-# Cell height/width ratio x100, measured from the real window geometry.
-cell_ratio_x100() {
+# Exact pixel size of a cols x rows cell rectangle, measured from the
+# terminal's real geometry.
+pane_px() {
   local px rc
   px=$(kitten icat --print-window-size 2>/dev/null </dev/tty) || return 1
   rc=$(stty size </dev/tty 2>/dev/null) || return 1
-  local pw=${px%x*} ph=${px#*x} rows=${rc%% *} cols=${rc##* }
-  [[ $pw =~ ^[0-9]+$ && $ph =~ ^[0-9]+$ ]] || return 1
-  ((pw > 0 && ph > 0 && rows > 0 && cols > 0)) || return 1
-  echo $(((ph * cols * 100) / (rows * pw)))
+  local pw=${px%x*} ph=${px#*x} rows_t=${rc%% *} cols_t=${rc##* }
+  [[ $pw =~ ^[0-9]+$ && $ph =~ ^[0-9]+$ && $rows_t =~ ^[0-9]+$ && $cols_t =~ ^[0-9]+$ ]] || return 1
+  ((pw > 0 && ph > 0 && rows_t > 0 && cols_t > 0)) || return 1
+  echo "$(($1 * pw / cols_t))x$(($2 * ph / rows_t))"
 }
 
-# Draws an image horizontally centered in a cols x rows cell rectangle.
-# icat's --align is ignored with --place + unicode placeholders, so the
-# offset is computed here from the image and cell dimensions.
+# Draws an image centered in a cols x rows cell rectangle. icat anchors
+# top-left inside --place (ignoring --align with unicode placeholders) and
+# never upscales, so the image is composited onto a transparent canvas of
+# the pane's exact pixel size — the padding is what centers it.
 icat_centered() {
   local img="$1" cols="$2" rows="$3"
-  local place="${cols}x${rows}@0x0"
+
   if command -v magick >/dev/null; then
-    local dims iw ih ratio
-    dims=$(magick identify -format "%w %h" "$img[0]" 2>/dev/null)
-    iw=${dims%% *} ih=${dims##* }
-    ratio=$(cell_ratio_x100) || ratio=200
-    if [[ $iw =~ ^[0-9]+$ && $ih =~ ^[0-9]+$ ]] && ((ih > 0)); then
-      local w_cells=$((iw * rows * ratio / (ih * 100)))
-      ((w_cells > 0 && w_cells < cols)) &&
-        place="${w_cells}x${rows}@$(((cols - w_cells) / 2))x0"
+    local size
+    size=$(pane_px "$cols" "$rows") || size="$((cols * 10))x$((rows * 21))"
+    local canvas="$CACHE_DIR/pane-$$.png"
+    if magick "$img[0]" -resize "$size" -background none -gravity center \
+      -extent "$size" "$canvas" 2>/dev/null; then
+      kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no \
+        --scale-up --place "${cols}x${rows}@0x0" "$canvas" 2>/dev/null
+      rm -f "$canvas"
+      return 0
     fi
+    rm -f "$canvas"
   fi
+
   kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no \
-    --place "$place" "$img" 2>/dev/null
+    --place "${cols}x${rows}@0x0" "$img" 2>/dev/null
 }
 
 render_in_pane() {
