@@ -115,7 +115,7 @@ Las descargas desde `raw.githubusercontent.com` no consumen cuota de API.
 - El kitty.conf de usuario ya incluye el tema actual → la ventana flotante
   hereda colores sin hacer nada.
 
-**5a — Herencia de tema real:**
+**5a — Herencia de tema real: ✅ (2026-07-03, verificada con Carbon Vandal ↔ Nord)**
 - Eliminar la paleta Carbon Vandal hardcodeada del script.
 - fzf: parsear accent/background/foreground/color0/color8 de `colors.toml`
   (fallback a genérico si el tema no lo trae).
@@ -123,7 +123,8 @@ Las descargas desde `raw.githubusercontent.com` no consumen cuota de API.
   exports actuales PISAN el tema del usuario.
 - Verificar cambiando entre 2-3 temas stock (capturas comparativas).
 
-**5b — Entrada en Style > Background:**
+**5b — Entrada en Style > Background: ✅ (2026-07-03, con portada de lupa
+generada por magick en el accent del tema, regenerada al cambiar de tema)**
 - Sustituir el symlink por un wrapper Lua: `dofile()` del default de Omarchy
   (hereda sus cambios futuros) + `GetEntries` envuelto que añade la entrada
   "Browse walls collection…" → `activate = "omarchy-walls menu"`, con `pcall`
@@ -132,7 +133,7 @@ Las descargas desde `raw.githubusercontent.com` no consumen cuota de API.
 - `install.sh`: aplicar la integración (backup del symlink) + comando
   `omarchy-walls integrate|unintegrate` para aplicar/revertir a mano.
 
-**5c — Supervivencia a updates de Omarchy:**
+**5c — Supervivencia a updates de Omarchy: ✅ (2026-07-03)**
 - Una migración de Omarchy puede recrear el symlink y quitar la entrada:
   detectar en `omarchy-walls menu` si la integración se perdió y avisar
   (re-ejecutar `install.sh` la restaura).

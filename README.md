@@ -48,8 +48,15 @@ cd omarchy-walls
 ```
 
 The installer copies the binary to `~/.local/bin`, binds `SUPER + ALT + W` in Hyprland
-(only if the combo is free — it never steals your keys), and validates the config reload.
-Re-running it is safe; it is how you update.
+(only if the combo is free — it never steals your keys), and hooks a
+**󰍉 Browse walls collection** entry into Omarchy's own background selector
+(`SUPER + ALT + SPACE` → Style → Background), previewed with a magnifier cover
+drawn in your theme's accent tone. Re-running it is safe; it is how you update.
+
+The UI inherits whatever theme you run: fzf reads the palette from the active
+theme's `colors.toml`, gum picks up Omarchy's session-wide styling, and the
+kitty window is themed by your own config. Switch themes and everything —
+cover included — follows.
 
 Dependencies — all stock on Omarchy: `jq`, `curl`, `fzf`, `gum`, `kitty`, `imv`.
 
@@ -113,7 +120,13 @@ ___
 | `omarchy-walls install <cat>/<file> --set`| Add to current theme and set as background now.     |
 | `omarchy-walls install <cat>/<file> --theme <name>` | Add to any installed theme's rotation.    |
 | `omarchy-walls index --force`             | Refresh the wallpaper index before its weekly TTL.  |
+| `omarchy-walls integrate`                 | (Re)add the entry in Style → Background.            |
+| `omarchy-walls unintegrate`               | Restore Omarchy's stock background selector.        |
 | `omarchy-walls clean`                     | Wipe cache (index, thumbnails, downloads).          |
+
+An Omarchy update can restore the stock selector; `omarchy-walls menu` detects
+it and notifies — re-run `omarchy-walls integrate` (or `./install.sh`) to hook
+it back.
 
 Set `GITHUB_TOKEN` if you ever hit the anonymous API rate limit. You won't.
 
