@@ -143,7 +143,8 @@ generada por magick en el accent del tema, regenerada al cambiar de tema)**
   detectar en `omarchy-walls menu` si la integración se perdió y avisar
   (re-ejecutar `install.sh` la restaura).
 
-**5d — PR al repo oficial: rama preparada (2026-07-06), pendiente de abrir**
+**5d — PR al repo oficial: ✅ ABIERTA (2026-07-06)
+https://github.com/basecamp/omarchy/pull/6184**
 - Fork en `samuhlo/omarchy`, rama `feat/wallpaper-browser`: `bin/omarchy-walls`
   (sin comandos integrate/unintegrate — la entrada vive directamente en su Lua)
   + entrada añadida a `default/elephant/omarchy_background_selector.lua`.
