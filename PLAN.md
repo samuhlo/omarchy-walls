@@ -143,11 +143,15 @@ generada por magick en el accent del tema, regenerada al cambiar de tema)**
   detectar en `omarchy-walls menu` si la integración se perdió y avisar
   (re-ejecutar `install.sh` la restaura).
 
-**5d — PR al repo oficial (cuando 5a-5c estén pulidas):**
-- Upstream sería: entrada en su Lua por defecto + omarchy-walls como binario
-  opcional. Dependencias: todas stock en Omarchy. Requiere abrir discusión en
-  el repo (los mantenedores son estrictos con el alcance); llevar capturas,
-  demo y el argumento "cero peso: streaming sin clonar 3,7 GB".
+**5d — PR al repo oficial: rama preparada (2026-07-06), pendiente de abrir**
+- Fork en `samuhlo/omarchy`, rama `feat/wallpaper-browser`: `bin/omarchy-walls`
+  (sin comandos integrate/unintegrate — la entrada vive directamente en su Lua)
+  + entrada añadida a `default/elephant/omarchy_background_selector.lua`.
+- Borrador de descripción en `PR_DRAFT.md`. Punto de fricción a discutir con
+  los mantenedores: kitty NO es paquete base de Omarchy (solo alacritty) y hace
+  falta para el protocolo gráfico; sin él, el script notifica en vez de fallar.
+- Además: instalación por curl añadida al repo standalone
+  (`curl -fsSL .../install.sh | bash`), verificada de punta a punta.
 
 ## Riesgos / decisiones
 
