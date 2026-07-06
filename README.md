@@ -41,6 +41,14 @@ ___
 
 ## // 01_ INSTALL
 
+One line, no clone:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samuhlo/omarchy-walls/main/install.sh | bash
+```
+
+Or from a checkout:
+
 ```bash
 git clone https://github.com/samuhlo/omarchy-walls
 cd omarchy-walls

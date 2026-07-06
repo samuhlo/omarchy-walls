@@ -1,14 +1,22 @@
 #!/bin/bash
 
 # Installs omarchy-walls: binary in ~/.local/bin + Hyprland keybinding.
-# Idempotent -> safe to re-run after updates.
+# Idempotent -> safe to re-run after updates. Works from a checkout or
+# piped from curl:
+#   curl -fsSL https://raw.githubusercontent.com/samuhlo/omarchy-walls/main/install.sh | bash
 
 set -euo pipefail
 
-SCRIPT_DIR=$(dirname "$(realpath "$0")")
+RAW_BASE="https://raw.githubusercontent.com/samuhlo/omarchy-walls/main"
 BIN_DIR="$HOME/.local/bin"
 BINDINGS="$HOME/.config/hypr/bindings.conf"
 KEYBIND='bindd = SUPER ALT, W, Wallpaper browser, exec, omarchy-walls menu'
+
+# Empty when piped from curl -> fetch the binary from the repo instead
+SCRIPT_DIR=""
+if [[ -n ${BASH_SOURCE[0]:-} && -f ${BASH_SOURCE[0]} ]]; then
+  SCRIPT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+fi
 
 echo ":: omarchy-walls installer"
 
@@ -26,7 +34,17 @@ command -v omarchy-theme-bg-set >/dev/null ||
   { echo ":: this tool needs an Omarchy system (omarchy-theme-bg-set not found)"; exit 1; }
 
 mkdir -p "$BIN_DIR"
-install -m 755 "$SCRIPT_DIR/omarchy-walls" "$BIN_DIR/omarchy-walls"
+if [[ -n $SCRIPT_DIR && -f $SCRIPT_DIR/omarchy-walls ]]; then
+  install -m 755 "$SCRIPT_DIR/omarchy-walls" "$BIN_DIR/omarchy-walls"
+else
+  echo ":: downloading omarchy-walls from GitHub"
+  tmp=$(mktemp)
+  curl -fsSL "$RAW_BASE/omarchy-walls" -o "$tmp"
+  # BLINDAJE -> a GitHub error page must never land in ~/.local/bin
+  head -1 "$tmp" | grep -q '^#!/bin/bash' || { rm -f "$tmp"; echo ":: download failed"; exit 1; }
+  install -m 755 "$tmp" "$BIN_DIR/omarchy-walls"
+  rm -f "$tmp"
+fi
 echo ":: installed $BIN_DIR/omarchy-walls"
 
 if [[ -f $BINDINGS ]] && ! grep -qF "omarchy-walls menu" "$BINDINGS"; then
