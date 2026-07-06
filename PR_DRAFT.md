@@ -7,44 +7,46 @@ https://github.com/samuhlo/omarchy/pull/new/feat/wallpaper-browser
 
 **Title:** Add wallpaper browser for the dharmx/walls collection
 
-## What
+`Style > Background` gains a **󰍉 Browse walls collection** entry: a floating
+browser for [dharmx/walls](https://github.com/dharmx/walls) — 1,637 curated
+wallpapers in 51 categories — without cloning its 3.7 GB. Browse, preview,
+and either set a wallpaper right away or add it to any theme's rotation.
 
-`Style > Background` gains a **󰍉 Browse walls collection** entry that opens a
-floating browser for [dharmx/walls](https://github.com/dharmx/walls) — 1,637
-curated wallpapers in 51 categories. Pick a category (previewed as a 2×2
-mosaic of random samples), fuzzy-search with live image previews, and either
-set a wallpaper as the current background or add it to any theme's rotation
-through the standard `~/.config/omarchy/backgrounds/<theme>/` folders.
+Pick a category, previewed as a mosaic of random samples:
 
 ![categories](https://raw.githubusercontent.com/samuhlo/omarchy-walls/main/assets/preview-categories.png)
+
+Fuzzy-search with live image previews:
+
 ![browser](https://raw.githubusercontent.com/samuhlo/omarchy-walls/main/assets/preview-list.png)
+
+Set it now, or add it to a theme:
+
 ![actions](https://raw.githubusercontent.com/samuhlo/omarchy-walls/main/assets/preview-actions.png)
 
-## How
+## How it works
 
-- **No 3.7 GB clone.** One GitHub Trees API call builds a weekly-cached index;
-  thumbnails come through an image-resize proxy at ~12 KB each; only installed
-  wallpapers download at full size. A browsing session costs a few hundred KB.
-- **Theme-native.** fzf colors come from the active theme's `colors.toml`, gum
-  picks up the session-wide styling Omarchy already injects, and the menu
-  entry's cover (a magnifier drawn in the theme accent) regenerates on theme
-  change.
-- **Two files.** `bin/omarchy-walls` (self-contained bash, follows the
-  `omarchy:summary` conventions, so it shows up in `omarchy commands`) and one
-  entry appended to `default/elephant/omarchy_background_selector.lua`.
+- **Two files:** `bin/omarchy-walls` (self-contained bash, shows up in
+  `omarchy commands`) and one entry in the background selector's Lua.
+- **Featherweight:** one GitHub API call indexes the collection, previews are
+  ~12 KB thumbnails via a resize proxy, and only what you install downloads
+  at full size. A whole browsing session costs a few hundred KB.
+- **Theme-native:** colors come from the active theme's `colors.toml` and the
+  session's gum styling; the entry's cover is drawn in the theme accent and
+  regenerates on theme change.
 
-## Dependencies
+## One dependency to discuss
 
-Everything is a base package (`jq`, `curl`, `fzf`, `gum`, `imv`,
-`imagemagick`) **except kitty**, which provides the graphics protocol for
-inline image previews. Without kitty the entry sends a notification pointing
-to `omarchy pkg add kitty` instead of failing silently. Happy to discuss:
-adding kitty to base, gating the menu entry on kitty being installed, or any
-other direction.
+Everything used is already a base package except **kitty**, which provides
+the graphics protocol for inline previews. Without it, the entry sends a
+notification pointing to `omarchy pkg add kitty` instead of failing silently.
+Happy to take this wherever you prefer — gating the entry, adding kitty, or
+another direction.
 
-## Provenance
+## Thanks
 
-Developed and battle-tested standalone at
-https://github.com/samuhlo/omarchy-walls (curl-installable for anyone who
-wants it without the PR). Wallpaper images belong to their artists, curated
-upstream by dharmx — this tool downloads on demand and redistributes nothing.
+All the wallpapers belong to their artists and to the beautiful curation work
+of [@dharmx](https://github.com/dharmx) in
+[dharmx/walls](https://github.com/dharmx/walls) — this tool just gives that
+collection a comfortable home inside Omarchy, downloading on demand and
+redistributing nothing.
