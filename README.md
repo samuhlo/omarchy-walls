@@ -5,9 +5,9 @@
 **1,637 CURATED WALLPAPERS. ZERO CLONES. ONE KEYBIND.**
 <br />
 
-[![Repo](https://img.shields.io/badge/REPO-samuhlo%2Fomarchy--walls-FFCA40?style=for-the-badge&logo=github&logoColor=black)](https://github.com/samuhlo/omarchy-walls)
 [![Type](https://img.shields.io/badge/TYPE-OMARCHY_TOOL-0C0011?style=for-the-badge&logoColor=FFCA40)](https://github.com/samuhlo/omarchy-walls)
-![Source](https://img.shields.io/badge/SOURCE-dharmx%2Fwalls-737373?style=for-the-badge)
+![Source](https://img.shields.io/badge/SOURCE-dharmx%2Fwalls-FFCA40?style=for-the-badge)
+[![License](https://img.shields.io/badge/LICENSE-MIT-737373?style=for-the-badge)](LICENSE)
 
   <br />
 </div>
