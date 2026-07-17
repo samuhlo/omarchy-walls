@@ -107,7 +107,7 @@ fetch_index() {
     echo "Warning: GitHub truncated the file listing; some wallpapers may be missing" >&2
   fi
 
-  # Keep only image blobs inside category folders, as "category/file" paths
+  # [DATA] GUARD -> Index only installable images from visible categories.
   jq --arg ext "$IMAGE_EXT_REGEX" --arg excl "$EXCLUDED_CATEGORIES" '
     [.tree[]
      | select(.type == "blob")
@@ -159,8 +159,6 @@ url_encode_path() {
   jq -rn --arg p "$1" '$p | @uri | gsub("%2F"; "/")'
 }
 
-# Validates a category/file path against the index and downloads it to the cache.
-# Prints the local path on stdout.
 cmd_get() {
   local path="${1:-}"
   validate_path "$path"
@@ -178,7 +176,7 @@ cmd_get() {
   echo "$dest"
 }
 
-# Downloads a small thumbnail (resize proxy, magick fallback) and prints its path.
+# [FLOW] Proxy first; local rendering survives a proxy outage.
 cmd_thumb() {
   local path="${1:-}"
   validate_path "$path"
@@ -208,7 +206,7 @@ cmd_thumb() {
     rm -f "$dest"
   fi
 
-  # Last resort: the full image works as an (oversized) thumbnail
+  # FAIL CLOSED -> Keep previews usable when no thumbnail renderer exists.
   echo "Warning: could not create thumbnail for $path, using full image" >&2
   cmd_get "$path"
 }
@@ -247,7 +245,7 @@ cmd_install() {
     theme=$(cat "$THEME_NAME_FILE" 2>/dev/null) ||
       die "could not detect current theme (is Omarchy installed?)"
   fi
-  # Same normalization omarchy-theme-set applies ("Carbon Vandal" -> carbon-vandal)
+  # [FLOW] Match Omarchy's slug format so the target theme resolves.
   theme=$(echo "$theme" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 
   local cached
@@ -278,8 +276,7 @@ is_kitty_graphics() {
   [[ -n ${KITTY_WINDOW_ID:-} || $TERM == *kitty* || $TERM == *ghostty* ]]
 }
 
-# Colors come from the active theme's canonical palette. gum needs no setup:
-# Hyprland already exports the theme's GUM_* vars session-wide.
+# [FLOW] Read the canonical palette; Gum inherits these colors from Hyprland.
 COLORS_TOML="$HOME/.config/omarchy/current/theme/colors.toml"
 
 theme_color() {
@@ -308,8 +305,7 @@ if [[ -f $COLORS_TOML ]]; then
   )
 fi
 
-# Exact pixel size of a cols x rows cell rectangle, measured from the
-# terminal's real geometry.
+# [FLOW] Terminal cells vary by font and scale; query real geometry before centering.
 pane_px() {
   local px rc
   px=$(kitten icat --print-window-size 2>/dev/null </dev/tty) || return 1
@@ -320,13 +316,8 @@ pane_px() {
   echo "$(($1 * pw / cols_t))x$(($2 * ph / rows_t))"
 }
 
-# Draws an image centered in a cols x rows cell rectangle. icat anchors
-# top-left inside --place (ignoring --align with unicode placeholders) and
-# never upscales, so the image is composited onto a transparent canvas of
-# the pane's exact pixel size — the padding is what centers it.
-# Mode: "placeholder" (default) survives fzf's text redraws; "direct" is a
-# pixel overlay for screens we fully control (text redraws can shift
-# placeholder rows and shred the image into stripes).
+# [FLOW] icat ignores alignment here; a padded canvas centers the image.
+# Placeholder mode survives fzf redraws; direct mode avoids stripe artifacts on static screens.
 icat_centered() {
   local img="$1" cols="$2" rows="$3" mode="${4:-placeholder}"
   local icat_args=(--clear --transfer-mode=memory --stdin=no)
@@ -356,7 +347,6 @@ render_in_pane() {
   fi
 }
 
-# Internal: renders the image preview inside fzf's preview pane.
 cmd_fzf_preview() {
   local path="${1:-}"
   local thumb
@@ -368,8 +358,7 @@ cmd_fzf_preview() {
   render_in_pane "$thumb"
 }
 
-# Internal: previews a category (or "all") as a 2x2 mosaic of random
-# wallpapers; falls back to a single image when magick or entries are short.
+# [FLOW] Fall back to one image when a complete mosaic is impossible.
 cmd_fzf_preview_category() {
   local category="${1:-}"
   local picks
@@ -392,7 +381,7 @@ cmd_fzf_preview_category() {
     return 0
   fi
 
-  # $$ -> fzf spawns overlapping previews while scrolling; keep them apart
+  # GUARD -> fzf overlaps preview processes while scrolling; isolate temporary mosaics.
   local mosaic="$CACHE_DIR/mosaic-$$.png"
   if magick montage "${thumbs[@]}" -tile 2x2 -geometry 400x225+1+1 -background none "$mosaic" 2>/dev/null; then
     render_in_pane "$mosaic"
@@ -402,8 +391,6 @@ cmd_fzf_preview_category() {
   fi
 }
 
-# Draws the selected wallpaper large at the top of the screen, leaving the
-# cursor below it for the action menu.
 render_selected_image() {
   local path="$1"
   is_kitty_graphics || return 0
@@ -419,8 +406,6 @@ render_selected_image() {
   tput cup $((img_lines + 1)) 0
 }
 
-# Shows the action menu for a selected wallpaper.
-# Returns 0 to go back to the list, 1 to quit the browser.
 wall_action_menu() {
   local path="$1" current_theme
   current_theme=$(cat "$THEME_NAME_FILE" 2>/dev/null || echo "unknown")
@@ -448,7 +433,7 @@ wall_action_menu() {
       "Add to another theme...")
         local theme
         render_selected_image "$path"
-        # --height -> 23+ themes would scroll the screen and shear the image
+        # GUARD -> Cap height to prevent scrolling from shearing the preview.
         theme=$(omarchy-theme-list 2>/dev/null | gum choose --height 8 --header "Target theme") || continue
         cmd_install "$path" --theme "$theme" && sleep 1
         return 0
@@ -466,8 +451,6 @@ wall_action_menu() {
   done
 }
 
-# Category picker. Prints the chosen category name ("all" included),
-# nothing when the user cancels.
 pick_category() {
   local total
   total=$(jq 'length' "$INDEX_FILE")
@@ -485,8 +468,6 @@ pick_category() {
     awk '{print $1}'
 }
 
-# Wallpaper list for one category ("all" shows everything).
-# Returns 0 to go back to the category picker, 1 to quit entirely.
 browse_category() {
   local category="$1"
   while true; do
@@ -533,8 +514,7 @@ cmd_browse() {
   done
 }
 
-# Internal: regenerates the menu cover (magnifier in the theme's accent tone)
-# when the theme changed since the last run. Cheap no-op otherwise.
+# [CACHE] Rebuild only when the active palette changes.
 cmd_ensure_cover() {
   command -v magick >/dev/null || return 0
   local theme accent bg meta meta_file="$CACHE_DIR/cover.meta"
@@ -556,19 +536,18 @@ cmd_integrate() {
   [[ -f $OMARCHY_DEFAULT_MENU ]] ||
     die "stock background selector not found (unsupported Omarchy version)"
 
-  # BLINDAJE -> never clobber a menu the user customized themselves
+  # GUARD -> Never overwrite a user-managed menu.
   if [[ -f $ELEPHANT_MENU && ! -L $ELEPHANT_MENU ]] &&
     ! grep -q "$INTEGRATION_MARKER" "$ELEPHANT_MENU"; then
     die "$ELEPHANT_MENU is a custom file — remove it first or integrate manually"
   fi
 
-  # Writing through the symlink would hit Omarchy's read-only source
+  # GUARD -> Remove the symlink before writing outside Omarchy's managed source.
   [[ -L $ELEPHANT_MENU ]] && rm "$ELEPHANT_MENU"
   mkdir -p "$(dirname "$ELEPHANT_MENU")"
 
   cat >"$ELEPHANT_MENU" <<LUA
--- $INTEGRATION_MARKER — wraps Omarchy's stock background selector and appends
--- a launcher entry. Managed by 'omarchy-walls integrate|unintegrate'.
+-- [FLOW] Keep stock entries and append this launcher.
 local home = os.getenv("HOME")
 local walls_bin = home .. "/.local/bin/omarchy-walls"
 local stock_ok = pcall(dofile, home .. "/.local/share/omarchy/default/elephant/omarchy_background_selector.lua")
@@ -589,7 +568,7 @@ function GetEntries()
     entries = stock_get_entries()
   end
 
-  -- Sync so the cover tone always matches the active theme
+  -- [FLOW] Refresh first so the cover never keeps a stale theme color.
   local cover = io.popen(walls_bin .. " __ensure-cover 2>/dev/null")
   if cover then
     cover:read("*a")
@@ -627,7 +606,7 @@ cmd_unintegrate() {
 cmd_menu() {
   command -v kitty >/dev/null || die "kitty is required for the menu window"
 
-  # An Omarchy update can silently restore the stock menu symlink
+  # GUARD -> Omarchy updates can silently restore the stock menu symlink.
   if [[ -f $CACHE_DIR/.integrated ]] && ! grep -qs "$INTEGRATION_MARKER" "$ELEPHANT_MENU"; then
     notify "omarchy-walls" "Menu integration was reverted (Omarchy update?) — run: omarchy-walls integrate"
   fi

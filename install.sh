@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# Installs omarchy-walls: binary in ~/.local/bin + Hyprland keybinding.
-# Idempotent -> safe to re-run after updates. Works from a checkout or
-# piped from curl:
+# [FLOW] Re-running repairs updates without duplicating the binding.
+# Works from a checkout or a curl pipe:
 #   curl -fsSL https://raw.githubusercontent.com/samuhlo/omarchy-walls/main/install.sh | bash
 
 set -euo pipefail
@@ -12,7 +11,7 @@ BIN_DIR="$HOME/.local/bin"
 BINDINGS="$HOME/.config/hypr/bindings.conf"
 KEYBIND='bindd = SUPER ALT, W, Wallpaper browser, exec, omarchy-walls menu'
 
-# Empty when piped from curl -> fetch the binary from the repo instead
+# [FLOW] A curl pipe has no checkout; fetch the binary instead.
 SCRIPT_DIR=""
 if [[ -n ${BASH_SOURCE[0]:-} && -f ${BASH_SOURCE[0]} ]]; then
   SCRIPT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
@@ -40,7 +39,7 @@ else
   echo ":: downloading omarchy-walls from GitHub"
   tmp=$(mktemp)
   curl -fsSL "$RAW_BASE/omarchy-walls" -o "$tmp"
-  # BLINDAJE -> a GitHub error page must never land in ~/.local/bin
+  # FAIL CLOSED -> A GitHub error page must never become an executable.
   head -1 "$tmp" | grep -q '^#!/bin/bash' || { rm -f "$tmp"; echo ":: download failed"; exit 1; }
   install -m 755 "$tmp" "$BIN_DIR/omarchy-walls"
   rm -f "$tmp"
@@ -48,7 +47,7 @@ fi
 echo ":: installed $BIN_DIR/omarchy-walls"
 
 if [[ -f $BINDINGS ]] && ! grep -qF "omarchy-walls menu" "$BINDINGS"; then
-  # BLINDAJE -> never touch a combo the user already bound to something else
+  # GUARD -> Preserve a key combination already owned by the user.
   if grep -qE '^\s*bindd? = SUPER ALT, W,' "$BINDINGS"; then
     echo ":: SUPER+ALT+W is already bound to something else — add your own binding:"
     echo "   $KEYBIND"
